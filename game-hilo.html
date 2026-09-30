@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexusWin - High & Low Switch</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Outfit', sans-serif; background-color: #030712; color: #fff; user-select: none; }
+        .cyber-panel { background: linear-gradient(135deg, #0f172a 0%, #030712 100%); border: 1px solid rgba(59, 130, 246, 0.3); box-shadow: 0 0 30px rgba(59, 130, 246, 0.08); }
+        .neon-number { text-shadow: 0 0 20px rgba(59, 130, 246, 0.6); }
+
+        @keyframes vipSlideDown {
+            0% { transform: translateY(-120%) scale(0.9); opacity: 0; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        @keyframes vipSlideUp {
+            0% { transform: translateY(0) scale(1); opacity: 1; }
+            100% { transform: translateY(-120%) scale(0.9); opacity: 0; }
+        }
+        .vip-toast-enter { animation: vipSlideDown 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
+        .vip-toast-exit { animation: vipSlideUp 0.3s ease-in forwards; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between pb-28">
+
+    <div id="toastContainer" class="fixed top-5 left-0 right-0 z-[9999] flex justify-center pointer-events-none px-4"></div>
+
+    <!-- Header -->
+    <header class="bg-[#030712]/95 backdrop-blur-md border-b border-blue-500/20 px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <button onclick="goBack()" class="w-9 h-9 rounded-xl bg-slate-800/80 flex items-center justify-center font-bold text-white hover:bg-slate-700 cursor-pointer">←</button>
+            <div class="flex items-center gap-2">
+               <div class="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-500 to-cyan-500 flex items-center justify-center text-xs shadow-md shadow-blue-500/30">⚡</div>
+               <div>
+                   <h2 class="text-xs font-black text-blue-400 uppercase tracking-wider">High & Low Switch</h2>
+                   <span class="text-[10px] text-cyan-300 font-semibold">● Quantum Hi-Lo Protocol</span>
+               </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 bg-slate-900/90 border border-blue-500/30 px-3.5 py-1.5 rounded-full shadow-inner">
+            <span class="text-[10px] uppercase font-bold text-slate-400">Bal:</span>
+            <span id="userBalance" class="text-xs font-black text-emerald-400">₹0.00</span>
+        </div>
+    </header>
+
+    <!-- Main Game Area -->
+    <main class="max-w-md mx-auto w-full p-4 flex flex-col space-y-4">
+        <div class="cyber-panel rounded-3xl p-5 text-center space-y-4">
+            <div class="flex justify-between items-center px-1">
+                <div id="gameStatus" class="text-[10px] font-extrabold text-blue-400 uppercase tracking-widest">PREDICT NEXT QUANTUM CODE</div>
+                <div id="scoreDisplay" class="text-xs font-black text-emerald-400">1.00x</div>
+            </div>
+
+            <!-- Number Display Box -->
+            <div class="py-8 bg-slate-950/80 rounded-2xl border border-blue-500/30 relative overflow-hidden flex flex-col items-center justify-center shadow-inner">
+                <span class="text-[10px] text-slate-400 uppercase font-bold mb-1">Current Code Number</span>
+                <span id="currentNumber" class="text-6xl font-black text-blue-400 neon-number">--</span>
+                <span id="subStatus" class="text-[11px] text-slate-400 mt-2 font-medium">Guess if next code is Higher or Lower</span>
+            </div>
+
+            <div class="flex justify-between items-center text-[10px] text-slate-400 px-1 font-bold">
+                <span class="text-amber-400">House Edge Active</span>
+                <span id="potentialWin" class="text-blue-300">Win: ₹0.00</span>
+            </div>
+        </div>
+
+        <!-- Gameplay Action Buttons (Hidden until game starts) -->
+        <div id="actionControls" class="grid grid-cols-2 gap-3 hidden">
+            <button onclick="makeGuess('higher')" class="py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 text-white font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-500/30 transition-all cursor-pointer">HIGHER 📈</button>
+            <button onclick="makeGuess('lower')" class="py-4 rounded-2xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 text-white font-black text-xs uppercase tracking-widest shadow-lg shadow-rose-500/30 transition-all cursor-pointer">LOWER 📉</button>
+        </div>
+
+        <!-- Betting Controls -->
+        <div class="cyber-panel rounded-3xl p-4 space-y-3">
+            <div class="flex justify-between items-center">
+                <span class="text-xs font-bold text-slate-300 uppercase">Bet Amount (₹)</span>
+            </div>
+            
+            <input type="number" id="betAmount" value="10" class="w-full bg-[#030712] border border-blue-500/30 rounded-2xl px-4 py-3 text-xs text-white font-bold focus:outline-none focus:border-blue-500">
+
+            <div class="space-y-1.5">
+                <div class="text-[10px] font-bold text-slate-400 uppercase">Quick Bet (10 - 100)</div>
+                <div class="grid grid-cols-6 gap-1">
+                    <button onclick="setBet(10)" class="quick-btn py-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-bold text-slate-300 border border-slate-700/50 cursor-pointer">10</button>
+                    <button onclick="setBet(20)" class="quick-btn py-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-bold text-slate-300 border border-slate-700/50 cursor-pointer">20</button>
+                    <button onclick="setBet(30)" class="quick-btn py-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-bold text-slate-300 border border-slate-700/50 cursor-pointer">30</button>
+                    <button onclick="setBet(40)" class="quick-btn py-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-bold text-slate-300 border border-slate-700/50 cursor-pointer">40</button>
+                    <button onclick="setBet(50)" class="quick-btn py-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-bold text-slate-300 border border-slate-700/50 cursor-pointer">50</button>
+                    <button onclick="setBet(100)" class="quick-btn py-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-bold text-slate-300 border border-slate-700/50 cursor-pointer">100</button>
+                </div>
+
+                <div class="text-[10px] font-bold text-slate-400 uppercase pt-1">High Stakes (300 - 1000)</div>
+                <div class="grid grid-cols-5 gap-1.5">
+                    <button onclick="setBet(300)" class="quick-btn py-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-bold text-blue-400 border border-slate-700/50 cursor-pointer">300</button>
+                    <button onclick="setBet(500)" class="quick-btn py-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-bold text-blue-400 border border-slate-700/50 cursor-pointer">500</button>
+                    <button onclick="setBet(700)" class="quick-btn py-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-bold text-blue-400 border border-slate-700/50 cursor-pointer">700</button>
+                    <button onclick="setBet(800)" class="quick-btn py-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-bold text-blue-400 border border-slate-700/50 cursor-pointer">800</button>
+                    <button onclick="setBet(1000)" class="quick-btn py-1.5 bg-slate-800 hover:bg-slate-700 rounded-xl text-[10px] font-bold text-blue-400 border border-slate-700/50 cursor-pointer">1000</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 pt-1">
+                <button id="startBtn" onclick="startGame()" class="py-3.5 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-400 text-slate-950 font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-500/30 transition-all cursor-pointer">START GAME</button>
+                <button id="cashoutBtn" onclick="cashOut()" disabled class="py-3.5 rounded-2xl bg-slate-800 text-slate-500 font-black text-xs uppercase tracking-widest cursor-not-allowed transition-all">COLLECT</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Firebase & Game Engine -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getDatabase, ref, onValue, update, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyC4d_UnCWkmKc3D65HjxvAGvJ4A5GXFIQQ",
+            authDomain: "nexuswin-aa829.firebaseapp.com",
+            databaseURL: "https://nexuswin-aa829-default-rtdb.firebaseio.com",
+            projectId: "nexuswin-aa829",
+            storageBucket: "nexuswin-aa829.firebasestorage.app",
+            messagingSenderId: "865579357605",
+            appId: "1:865579357605:web:7af15e869ce54756a8844c"
+        };
+
+        let app, auth, db;
+        try {
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getDatabase(app);
+        } catch(e) {}
+
+        let currentUser = null;
+        let userBalance = 0;
+        let userWinningBalance = 0;
+        let userTurnover = 0;
+        let userGameControl = 'normal';
+        let activeBet = 0;
+        let gameActive = false;
+        let currentNum = 50;
+        let scoreMultiplier = 1.00;
+
+        // --- WEB AUDIO SYSTEM ---
+        let audioCtx = null;
+        function getAudioContext() {
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+            } catch(e) {}
+            return audioCtx;
+        }
+
+        window.playCustomSound = function(type) {
+            try {
+                const ctx = getAudioContext();
+                if(!ctx) return;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                const now = ctx.currentTime;
+
+                if (type === 'click') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(800, now);
+                    osc.frequency.exponentialRampToValueAtTime(400, now + 0.05);
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.06);
+                    osc.start(now);
+                    osc.stop(now + 0.06);
+                } else if (type === 'success') {
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(500, now);
+                    osc.frequency.setValueAtTime(750, now + 0.1);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+                    osc.start(now);
+                    osc.stop(now + 0.2);
+                } else if (type === 'collect') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(523.25, now);
+                    osc.frequency.setValueAtTime(659.25, now + 0.1);
+                    osc.frequency.setValueAtTime(783.99, now + 0.2);
+                    gain.gain.setValueAtTime(0.4, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+                    osc.start(now);
+                    osc.stop(now + 0.4);
+                } else if (type === 'fail') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(220, now);
+                    osc.frequency.linearRampToValueAtTime(100, now + 0.3);
+                    gain.gain.setValueAtTime(0.3, now);
+                    gain.gain.linearRampToValueAtTime(0.01, now + 0.35);
+                    osc.start(now);
+                    osc.stop(now + 0.35);
+                }
+            } catch(e) {}
+        }
+
+        window.goBack = function() {
+            playCustomSound('click');
+            window.location.href = 'dashboard.html';
+        }
+
+        function showVipToast(title, message, type = 'success') {
+            const container = document.getElementById('toastContainer');
+            if(!container) return;
+            container.innerHTML = ''; 
+            
+            const toast = document.createElement('div');
+            let bgGradient = 'linear-gradient(135deg, #064e3b 0%, #022c22 100%)';
+            let borderColor = '#10b981';
+            let icon = `<div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-lg shadow-inner">🏆</div>`;
+            let titleColor = 'text-emerald-400';
+
+            if(type === 'error') {
+                bgGradient = 'linear-gradient(135deg, #7f1d1d 0%, #450a0a 100%)';
+                borderColor = '#f43f5e';
+                icon = `<div class="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-base shadow-inner">🚨</div>`;
+                titleColor = 'text-rose-400';
+            }
+
+            toast.className = `pointer-events-auto flex items-center gap-3.5 px-4 py-3 rounded-2xl shadow-2xl backdrop-blur-xl border vip-toast-enter max-w-sm w-full mx-4`;
+            toast.style.background = bgGradient;
+            toast.style.borderColor = borderColor;
+            toast.style.boxShadow = `0 15px 30px rgba(0,0,0,0.5), 0 0 15px ${borderColor}33`;
+            
+            toast.innerHTML = `
+                ${icon}
+                <div class="flex-1">
+                    <div class="text-[12px] font-black uppercase tracking-wider ${titleColor}">${title}</div>
+                    <div class="text-[11px] font-semibold text-slate-200">${message}</div>
+                </div>
+            `;
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('vip-toast-enter');
+                toast.classList.add('vip-toast-exit');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+
+        if(auth) {
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    currentUser = user;
+                    setupDatabaseListener(user.uid);
+                } else {
+                    try {
+                        const cred = await signInAnonymously(auth);
+                        currentUser = cred.user;
+                        setupDatabaseListener(currentUser.uid);
+                    } catch(err) {
+                        userBalance = 0;
+                        updateBalanceUI();
+                    }
+                }
+            });
+        } else {
+            userBalance = 0;
+            updateBalanceUI();
+        }
+
+        function setupDatabaseListener(uid) {
+            try {
+                const userRef = ref(db, 'users/' + uid);
+                onValue(userRef, (snap) => {
+                    if(snap.exists()) {
+                        const val = snap.val();
+                        userBalance = val.balance !== undefined ? val.balance : 0;
+                        userWinningBalance = Number(val.winningBalance || 0);
+                        userTurnover = Number(val.turnover || 0);
+                        if(val.gameControls && val.gameControls.minesweeper) {
+                            userGameControl = val.gameControls.minesweeper;
+                        }
+                    } else {
+                        set(userRef, { balance: 0, winningBalance: 0, turnover: 0 });
+                        userBalance = 0;
+                    }
+                    updateBalanceUI();
+                }, () => { updateBalanceUI(); });
+            } catch(e) { updateBalanceUI(); }
+        }
+
+        function updateBalanceUI() {
+            const balEl = document.getElementById('userBalance');
+            if(balEl) {
+                balEl.innerText = `₹${userBalance > 999999 ? userBalance.toExponential(2) : userBalance.toFixed(2)}`;
+            }
+        }
+
+        window.setBet = (amt) => { 
+            if(gameActive) return;
+            playCustomSound('click');
+            document.getElementById('betAmount').value = amt; 
+        }
+
+        window.startGame = async function() {
+            if(gameActive) return;
+            playCustomSound('click');
+            activeBet = parseFloat(document.getElementById('betAmount').value);
+            let numericBal = Number(userBalance);
+
+            if(!activeBet || activeBet < 10) { 
+                showVipToast("LOW BALANCE", "Minimum bet is ₹10", "error");
+                return; 
+            }
+            if(activeBet > numericBal) { 
+                showVipToast("LOW BALANCE", "Insufficient balance!", "error");
+                return; 
+            }
+
+            userBalance = numericBal - activeBet;
+            userTurnover += (activeBet * 0.30);
+            updateBalanceUI();
+
+            if(currentUser && db) {
+                try {
+                    await update(ref(db, `users/${currentUser.uid}`), { 
+                        balance: userBalance,
+                        turnover: userTurnover
+                    });
+                } catch(e) {}
+            }
+
+            gameActive = true;
+            scoreMultiplier = 1.00;
+            currentNum = Math.floor(Math.random() * 80) + 10;
+
+            document.getElementById('currentNumber').innerText = currentNum;
+            document.getElementById('scoreDisplay').innerText = `1.00x`;
+            document.getElementById('potentialWin').innerText = `Win: ₹${activeBet.toFixed(2)}`;
+            document.getElementById('gameStatus').innerText = "MAKE YOUR PREDICTION";
+            document.getElementById('subStatus').innerText = "Choose Higher or Lower";
+
+            document.getElementById('actionControls').classList.remove('hidden');
+            document.getElementById('startBtn').disabled = true;
+            document.getElementById('startBtn').className = "py-3.5 rounded-2xl bg-slate-800 text-slate-500 font-black text-xs uppercase tracking-widest cursor-not-allowed";
+            document.getElementById('cashoutBtn').disabled = false;
+            document.getElementById('cashoutBtn').className = "py-3.5 rounded-2xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 text-slate-950 font-black text-xs uppercase tracking-widest shadow-lg shadow-emerald-500/30 transition-all cursor-pointer";
+        }
+
+        window.makeGuess = function(choice) {
+            if(!gameActive) return;
+            playCustomSound('click');
+
+            let nextNum = Math.floor(Math.random() * 100) + 1;
+            if(nextNum === currentNum) nextNum = (currentNum + 1) % 100;
+
+            let isHigher = nextNum > currentNum;
+            let playerWon = (choice === 'higher' && isHigher) || (choice === 'lower' && !isHigher);
+
+            if (userGameControl === 'win') {
+                playerWon = true;
+            } else if (userGameControl === 'lose') {
+                playerWon = false;
+            } else {
+                if(playerWon && (Math.random() < 0.25 || scoreMultiplier > 1.4)) {
+                    playerWon = false;
+                }
+            }
+
+            if(!playerWon) {
+                nextNum = choice === 'higher' ? currentNum - Math.floor(Math.random()*12)-1 : currentNum + Math.floor(Math.random()*12)+1;
+                if(nextNum < 1) nextNum = 1; if(nextNum < 1) nextNum = 1; if(nextNum > 100) nextNum = 100;
+            }
+
+            currentNum = nextNum;
+            document.getElementById('currentNumber').innerText = currentNum;
+
+            if(playerWon) {
+                playCustomSound('success');
+                scoreMultiplier += 0.35 + (Math.random() * 0.15);
+                let curWin = activeBet * scoreMultiplier;
+                document.getElementById('scoreDisplay').innerText = `${scoreMultiplier.toFixed(2)}x`;
+                document.getElementById('potentialWin').innerText = `Win: ₹${curWin.toFixed(2)}`;
+                document.getElementById('gameStatus').innerText = "SUCCESS! PREDICT NEXT";
+            } else {
+                gameOver();
+            }
+        }
+
+        window.cashOut = async function() {
+            if(!gameActive) return;
+            gameActive = false;
+            playCustomSound('collect');
+
+            let winAmt = activeBet * scoreMultiplier;
+            let netProfit = winAmt - activeBet;
+            let allowableWinning = netProfit > 0 ? netProfit * 0.40 : 0;
+
+            userBalance = Number(userBalance) + winAmt;
+            userWinningBalance += allowableWinning;
+            updateBalanceUI();
+
+            if(currentUser && db) {
+                try {
+                    await update(ref(db, `users/${currentUser.uid}`), { 
+                        balance: userBalance,
+                        winningBalance: userWinningBalance
+                    });
+                } catch(e) {}
+            }
+
+            document.getElementById('gameStatus').innerText = `COLLECTED: +₹${winAmt.toFixed(2)}`;
+            document.getElementById('subStatus').innerText = "Session Completed Securely";
+            showVipToast("CASH OUT!", `Collected ₹${winAmt.toFixed(2)}`, "success");
+            resetControls();
+        }
+
+        function gameOver() {
+            gameActive = false;
+            playCustomSound('fail');
+            document.getElementById('gameStatus').innerText = "WRONG PREDICTION! ADMIN WINS";
+            document.getElementById('subStatus').innerText = `Code landed incorrectly`;
+            showVipToast("ROUND LOST", `Wrong prediction. Lost ₹${activeBet.toFixed(2)}`, "error");
+            resetControls();
+        }
+
+        function resetControls() {
+            document.getElementById('actionControls').classList.add('hidden');
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('startBtn').className = "py-3.5 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-400 text-slate-950 font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-500/30 transition-all cursor-pointer";
+            document.getElementById('cashoutBtn').disabled = true;
+            document.getElementById('cashoutBtn').className = "py-3.5 rounded-2xl bg-slate-800 text-slate-500 font-black text-xs uppercase tracking-widest cursor-not-allowed transition-all";
+        }
+    </script>
+</body>
+</html>

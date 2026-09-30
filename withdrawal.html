@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexusWin - Withdrawal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Outfit', sans-serif; }
+        .glass-panel { background: rgba(13, 17, 28, 0.85); backdrop-filter: blur(24px); border: 1px solid rgba(255, 255, 255, 0.08); box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.7); }
+        #toastBox { transition: transform 0.3s ease, opacity 0.3s ease; }
+    </style>
+</head>
+<body class="bg-[#030712] text-slate-100 min-h-screen p-4 flex flex-col justify-between">
+
+    <!-- Toast Notification Box -->
+    <div id="toastBox" class="fixed top-5 left-1/2 -translate-x-1/2 z-[100] bg-rose-600 text-white px-5 py-3 rounded-2xl shadow-2xl text-xs font-bold tracking-wide transform -translate-y-20 opacity-0 pointer-events-none flex items-center gap-2 border border-rose-400/30">
+        <span>⚠️</span> <span id="toastMsg">Error message here</span>
+    </div>
+
+    <div class="max-w-md mx-auto w-full max-w-sm space-y-4 my-auto">
+        <div class="glass-panel rounded-[2.5rem] p-6 border border-slate-800 relative">
+            <button onclick="window.location.href='dashboard.html'" class="absolute top-5 right-5 text-slate-400 hover:text-white font-bold text-sm">✕</button>
+            <h3 class="text-base font-extrabold text-white mb-1">Request Withdrawal</h3>
+            <p class="text-[11px] text-slate-400 mb-3">Only winning balance can be withdrawn.</p>
+
+            <div class="grid grid-cols-2 gap-2 mb-3 bg-slate-900/90 p-3 rounded-2xl border border-slate-800">
+                <div>
+                    <p class="text-[9px] text-slate-400 uppercase font-bold">Total Balance</p>
+                    <p id="modalTotalBal" class="text-xs font-black text-white">₹0.00</p>
+                </div>
+                <div>
+                    <p class="text-[9px] text-slate-400 uppercase font-bold">Withdrawable (Win)</p>
+                    <p id="modalWinningBal" class="text-xs font-black text-emerald-400">₹0.00</p>
+                </div>
+            </div>
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Amount (₹)</label>
+                    <input type="number" id="withdrawAmount" oninput="calculateWithdrawFee()" placeholder="Enter amount" class="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-white font-semibold focus:outline-none focus:border-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Target UPI ID</label>
+                    <input type="text" id="withdrawUpi" placeholder="e.g. username@okhdfcbank" class="w-full bg-slate-900 border border-slate-800 rounded-2xl px-4 py-3 text-xs text-white font-semibold focus:outline-none focus:border-indigo-500">
+                </div>
+
+                <div id="feeCalcBox" class="bg-slate-900/90 border border-slate-800 rounded-2xl p-3 text-[11px] space-y-1 hidden">
+                    <div class="flex justify-between text-slate-400"><span>Processing Fee:</span> <span id="calcFee" class="text-rose-400 font-bold">₹0</span></div>
+                    <div class="flex justify-between text-slate-200 font-bold"><span>You Will Receive:</span> <span id="calcNet" class="text-emerald-400">₹0</span></div>
+                </div>
+
+                <button onclick="submitWithdrawRequest()" class="w-full py-3.5 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs uppercase tracking-wider shadow-lg shadow-indigo-600/30 transition-all">Submit Withdrawal Request</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+        import { getDatabase, ref, onValue, push, update, get, query, orderByChild, equalTo } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyC4d_UnCWkmKc3D65HjxvAGvJ4A5GXFIQQ",
+            authDomain: "nexuswin-aa829.firebaseapp.com",
+            databaseURL: "https://nexuswin-aa829-default-rtdb.firebaseio.com",
+            projectId: "nexuswin-aa829",
+            storageBucket: "nexuswin-aa829.firebasestorage.app",
+            messagingSenderId: "865579357605",
+            appId: "1:865579357605:web:7af15e869ce54756a8844c",
+            measurementId: "G-NTZY5VKYP0"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getDatabase(app);
+
+        let currentUserBalance = 0;
+        let currentWinningBalance = 0;
+        let userVipLevel = 0;
+        let hasWithdrawnToday = false;
+        let currentUserEmail = "";
+
+        const vipLimits = { 0: 1000, 1: 5000, 2: 15000, 3: 50000, 4: 100000 };
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                currentUserEmail = user.email || "Gamer";
+                const userRef = ref(db, 'users/' + user.uid);
+                
+                onValue(userRef, (snapshot) => {
+                    const data = snapshot.val();
+                    if(data) {
+                        currentUserBalance = data.balance !== undefined ? Number(data.balance) : 0;
+                        userVipLevel = data.vipLevel !== undefined ? Number(data.vipLevel) : 0;
+                        
+                        // Seedha database ka winningBalance uthega bina kisi faltu formula ke
+                        currentWinningBalance = data.winningBalance !== undefined ? Number(data.winningBalance) : 0;
+
+                        document.getElementById('modalTotalBal').innerText = `₹${currentUserBalance.toFixed(2)}`;
+                        document.getElementById('modalWinningBal').innerText = `₹${currentWinningBalance.toFixed(2)}`;
+                    }
+                });
+
+                const todayStr = new Date().toISOString().split('T')[0];
+                const withdrawalsRef = ref(db, 'transactions/withdrawals');
+                const q = query(withdrawalsRef, orderByChild('uid'), equalTo(user.uid));
+                const snap = await get(q);
+                if(snap.exists()) {
+                    snap.forEach((child) => {
+                        const tx = child.val();
+                        const txDate = new Date(tx.timestamp).toISOString().split('T')[0];
+                        if(txDate === todayStr) {
+                            hasWithdrawnToday = true;
+                        }
+                    });
+                }
+            } else {
+                window.location.href = "index.html";
+            }
+        });
+
+        function showToast(msg) {
+            const toast = document.getElementById('toastBox');
+            document.getElementById('toastMsg').innerText = msg;
+            toast.classList.remove('-translate-y-20', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('-translate-y-20', 'opacity-0');
+            }, 3000);
+        }
+
+        window.calculateWithdrawFee = function() {
+            const amt = parseFloat(document.getElementById('withdrawAmount').value) || 0;
+            const feeBox = document.getElementById('feeCalcBox');
+            const maxLimit = vipLimits[userVipLevel] || 1000;
+
+            if (amt > currentWinningBalance) {
+                showToast(`❌ Cannot withdraw more than winning balance (₹${currentWinningBalance})!`);
+            } else if (amt > maxLimit) {
+                showToast(`⚠️ VIP Level ${userVipLevel} limit exceeded! Max limit is ₹${maxLimit}`);
+            }
+
+            if (amt <= 0) {
+                feeBox.classList.add('hidden');
+                return;
+            }
+            feeBox.classList.remove('hidden');
+
+            let fee = hasWithdrawnToday ? amt * 0.20 : 0;
+            let net = amt - fee;
+            if (net < 0) net = 0;
+
+            document.getElementById('calcFee').innerText = hasWithdrawnToday ? `₹${fee.toFixed(2)} (20%)` : `₹0.00 (1st Free)`;
+            document.getElementById('calcNet').innerText = `₹${net.toFixed(2)}`;
+        }
+
+        window.submitWithdrawRequest = async function() {
+            try {
+                const user = auth.currentUser;
+                if (!user) { showToast("Session expired!"); return; }
+
+                const amount = parseFloat(document.getElementById('withdrawAmount').value);
+                const upi = document.getElementById('withdrawUpi').value.trim();
+                const maxLimit = vipLimits[userVipLevel] || 1000;
+
+                if (!amount || !upi || !upi.includes('@')) {
+                    showToast("Please enter valid amount and UPI ID.");
+                    return;
+                }
+
+                if (amount < 100) {
+                    showToast("❌ Minimum withdrawal is ₹100!");
+                    return;
+                }
+
+                if (amount > currentWinningBalance) {
+                    showToast(`❌ Exceeds withdrawable winning balance (₹${currentWinningBalance})!`);
+                    return;
+                }
+
+                if (amount > maxLimit) {
+                    showToast(`⚠️ Limit exceeded! Your VIP Level limit is ₹${maxLimit}.`);
+                    return;
+                }
+
+                let fee = hasWithdrawnToday ? amount * 0.20 : 0;
+                let netPayout = amount - fee;
+                
+                const newTotalBalance = currentUserBalance - amount;
+                const newWinningBalance = currentWinningBalance - amount;
+
+                const updates = {};
+                updates[`users/${user.uid}/balance`] = newTotalBalance;
+                updates[`users/${user.uid}/winningBalance`] = newWinningBalance > 0 ? newWinningBalance : 0;
+                
+                const newReqRef = push(ref(db, 'transactions/withdrawals'));
+                updates[`transactions/withdrawals/${newReqRef.key}`] = {
+                    uid: user.uid,
+                    email: currentUserEmail,
+                    amount: amount,
+                    fee: fee,
+                    netPayout: netPayout,
+                    upi: upi,
+                    status: 'Pending',
+                    timestamp: Date.now()
+                };
+
+                await update(ref(db), updates);
+
+                showToast(`✅ Withdrawal request submitted successfully!`);
+                setTimeout(() => window.location.href = 'dashboard.html', 1500);
+
+            } catch (error) {
+                showToast("Error: " + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
